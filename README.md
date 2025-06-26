@@ -36,8 +36,8 @@ Procurer is a modular Python system for multi-period, multi-product, multi-suppl
 - **Safety Stock**: Minimum inventory required at all times as a buffer against uncertainty
 - **MOQ**: Minimum order quantities that must be met for each supplier
 
-## Solver Architecture (2024 Refactor)
-All solvers now follow a clear, maintainable structure:
+## Solver Architecture
+All solvers follow a clear, maintainable structure:
 - **Lookup Table Preparation**: All data is mapped for fast access in a dedicated helper
 - **Variable/Model Creation**: Variables and models are created in a single, well-documented helper
 - **Objective & Constraints**: Each is added in a clear, grouped fashion, with helpers and comments
@@ -56,14 +56,6 @@ The system provides a comprehensive 2x2 visualization layout:
 2. **Shipments Plan**: When orders arrive at the warehouse
 3. **Inventory Levels**: Stock levels throughout the planning horizon
 4. **Demand vs Supply**: Comparison of customer demand vs. available supply
-
-All plots are optimized for clarity with y-axis starting at 0 when appropriate, grid lines, and clear legends.
-
-## How to Contribute or Extend
-- To add a new solver, subclass `BaseSolver` and follow the helper-based structure (see `solvers/linear.py`, `solvers/nonlinear.py`, `solvers/heuristic.py`)
-- To add new constraints or objectives, add a helper or extend the relevant method
-- All code should be type-annotated and clearly commented
-- Run `pytest` to verify correctness after any change
 
 ## Running & Testing
 - Install requirements: `pip install -r requirements.txt`
