@@ -4,8 +4,13 @@ from typing import Dict, Optional
 class Product(BaseModel):
     """
     Represents a product that can be procured from suppliers.
-    MOQ (Minimum Order Quantity) is enforced in both the exact and heuristic solvers.
-    The 'discounts' field defines quantity discounts for nonlinear optimization: {'threshold': int, 'discount': float}.
+    Fields:
+    - id: Unique identifier for the product.
+    - name: Name of the product.
+    - unit_cost_by_supplier: Dictionary mapping supplier IDs to unit costs.
+    - expiration_periods: Number of periods before the product expires.
+    - MOQ: Minimum order quantity for the product.
+    - discounts: Optional dictionary defining quantity discounts (threshold and discount rate).
     """
     id: str = Field(..., description="Unique identifier for the product.")
     name: str = Field(..., description="Name of the product.")

@@ -1,192 +1,75 @@
-# Procurer: Professional Python Supply Chain Optimization System
+# Procurer: Professional Supply Chain Optimization
 
-Procurer is a comprehensive, modular, and extensible Python system for multi-period, multi-product, multi-supplier procurement optimization. It supports both exact (MILP) and heuristic approaches, scenario analysis, risk assessment, and more.
+Procurer is a modular, professional Python system for multi-period, multi-product, multi-supplier procurement planning with realistic lead time modeling. It features:
 
-## Features
-- Multi-period, multi-product, multi-supplier procurement optimization
-- Linear (MILP) and heuristic solvers
-- Scenario analysis, rolling horizon, risk assessment
-- CLI and optional FastAPI web API
-- Modular, object-oriented design with type hints
-- Pydantic data models and robust validation
-- Visualization utilities for results
+- Streamlit UI for scenario analysis and reporting
+- Linear (MILP), nonlinear (NLP), and heuristic solvers
+- Realistic lead time modeling (procurement vs shipments)
+- 2x2 visualization layout for comprehensive analysis
+- Scenario analysis and comprehensive reporting
+- Fully documented, extensible, and robust codebase
 
-## Mathematical Formulation & Solver Details
+## Key Features
+- **Optimization**: Minimize procurement, logistics, and holding costs while meeting demand and respecting all constraints (capacity, safety stock, MOQ, shelf life, lead times, etc.)
+- **Multiple Solvers**: Compare exact (MILP), nonlinear (discount-aware), and heuristic (fast, interpretable) approaches
+- **Realistic Lead Times**: Distinguish between when orders are placed (procurement) and when they arrive (shipments)
+- **2x2 Visualization**: Comprehensive view showing procurement plans, shipments, inventory levels, and demand vs supply
+- **Scenario Analysis**: Explore the impact of different policies, demand, and supplier options
+- **Professional Reporting**: HTML and in-app reports with clear explanations, KPIs, and visualizations
+- **Tested & Documented**: Comprehensive tests and detailed documentation throughout
 
-### Model Variables
-- **Indices:**
-  - $i$: Product
-  - $j$: Supplier
-  - $t$: Period
-- **Decision Variables:**
-  - $p_{i,j,t}$: Quantity of product $i$ procured from supplier $j$ in period $t$
-  - $inv_{i,t}$: Inventory of product $i$ at the end of period $t$
+## Key Supply Chain Concepts
+- **Procurement Plan**: When orders are placed to suppliers (considering lead times)
+- **Shipments Plan**: When orders actually arrive at the warehouse (procurement + lead time)
+- **Inventory Levels**: Stock levels throughout the planning horizon
+- **Demand vs Supply**: Comparison of customer demand vs. available supply
 
-### Linear Solver (MILP)
-**Objective:**
-Minimize total cost (procurement, logistics, holding):
+## Solver Methodologies
+- **Linear (MILP)**: Finds the optimal plan by minimizing total cost (procurement, logistics, holding) while respecting all constraints. Models realistic lead times and distinguishes between procurement (order placement) and shipments (order arrival).
+- **Nonlinear (NLP)**: Similar to linear solver, but models quantity discounts: if you buy more than a threshold, you get a lower price for the extra units. Also models lead times and distinguishes procurement from shipments.
+- **Heuristic**: Works period by period, projecting inventory forward and ordering when safety stock is threatened. Orders from the cheapest available supplier when projected inventory falls below safety stock. Fast and simple, but may not find the absolute best solution. Models lead times and distinguishes procurement from shipments.
 
-$$
-\min \sum_{i,j,t} p_{i,j,t} \cdot c_{i,j} + \sum_{i,j,t} p_{i,j,t} \cdot l_{j,i} + \sum_{i,t} inv_{i,t} \cdot h_i
-$$
-Where:
-- $c_{i,j}$: Unit cost of product $i$ from supplier $j$
-- $l_{j,i}$: Logistics cost per unit
-- $h_i$: Holding cost per unit per period
+## Constraints & Assumptions
+- **Hard Constraints**: All constraints in the model are hard constraints (must be satisfied): demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and MOQ.
+- **Soft Constraints**: In some advanced scenarios, soft constraints (penalties for violations) can be used for flexibility or robustness, e.g., allowing small backorders or exceeding capacity with a cost penalty.
+- **Lead Times**: Realistic modeling of time between order placement and order arrival
+- **Safety Stock**: Minimum inventory required at all times as a buffer against uncertainty
+- **MOQ**: Minimum order quantities that must be met for each supplier
 
-**Constraints:**
-- **Inventory balance:**
-  - $inv_{i,t} = inv_{i,t-1} + \sum_j p_{i,j,t} - d_{i,t}$
-- **Warehouse capacity:**
-  - $inv_{i,t} \leq$ warehouse capacity
-- **Safety stock:**
-  - $inv_{i,t} \geq$ safety stock
-- **Shelf life:**
-  - $inv_{i,t} = 0$ if $t$ exceeds expiration
-- **MOQ:**
-  - If $p_{i,j,t} > 0$, then $p_{i,j,t} \geq$ MOQ
+## Solver Architecture (2024 Refactor)
+All solvers now follow a clear, maintainable structure:
+- **Lookup Table Preparation**: All data is mapped for fast access in a dedicated helper
+- **Variable/Model Creation**: Variables and models are created in a single, well-documented helper
+- **Objective & Constraints**: Each is added in a clear, grouped fashion, with helpers and comments
+- **Solution Extraction**: Output is parsed and returned in a consistent format
 
-### Nonlinear Solver (NLP with Quantity Discounts)
-**Objective:**
-Minimize total cost, where procurement cost is piecewise nonlinear due to discounts:
+This structure makes it easy to:
+- Understand and debug solver logic
+- Extend with new constraints, objectives, or solver types
+- Maintain and test the codebase
 
-$$
-\min \sum_{i,j,t} \text{PiecewiseCost}(p_{i,j,t}) + \sum_{i,j,t} p_{i,j,t} \cdot l_{j,i} + \sum_{i,t} inv_{i,t} \cdot h_i
-$$
-Where:
-- $\text{PiecewiseCost}(p_{i,j,t}) = \begin{cases}
-  p_{i,j,t} \cdot c_{i,j} & \text{if } p_{i,j,t} \leq \text{threshold} \\
-  \text{threshold} \cdot c_{i,j} + (p_{i,j,t} - \text{threshold}) \cdot c_{i,j} \cdot (1-\text{discount}) & \text{if } p_{i,j,t} > \text{threshold}
-\end{cases}$
+**Inputs and outputs remain unchanged**—all APIs and data formats are stable.
 
-**Constraints:** Same as linear solver.
+## Visualization & Analysis
+The system provides a comprehensive 2x2 visualization layout:
+1. **Procurement Plan**: When orders are placed (considering lead times)
+2. **Shipments Plan**: When orders arrive at the warehouse
+3. **Inventory Levels**: Stock levels throughout the planning horizon
+4. **Demand vs Supply**: Comparison of customer demand vs. available supply
 
-### Heuristic Solver
-- Fulfills demand and safety stock period by period, from the cheapest supplier, using the same constraints as above, but does not guarantee global optimality.
-- Applies discounts in a greedy fashion if order quantity exceeds threshold.
+All plots are optimized for clarity with y-axis starting at 0 when appropriate, grid lines, and clear legends.
 
-### Discount Handling
-- **Discounts** are defined per product as `{ "threshold": int, "discount": float }`.
-- If order quantity for a product in a period from a supplier exceeds the threshold, the discount applies to units above the threshold.
+## How to Contribute or Extend
+- To add a new solver, subclass `BaseSolver` and follow the helper-based structure (see `solvers/linear.py`, `solvers/nonlinear.py`, `solvers/heuristic.py`)
+- To add new constraints or objectives, add a helper or extend the relevant method
+- All code should be type-annotated and clearly commented
+- Run `pytest` to verify correctness after any change
 
-## Project Structure
-```
-Procurer/
-  models/         # Pydantic data models
-  solvers/        # Optimization and heuristic solvers
-  utils/          # Utilities (logging, validation, metrics, visualization, etc.)
-  data/           # Example datasets
-  tests/          # Unit and integration tests
-  cli.py          # CLI entry point
-  api.py          # FastAPI web API
-  main.py         # Main orchestration script
-  requirements.txt
-  README.md
-```
-
-## Requirements and Installation
-
-### Python Dependencies
-All required Python packages are listed in `requirements.txt`. Install them with:
-
-```bash
-pip install -r requirements.txt
-```
-
-Key dependencies:
-- `pydantic` (data validation)
-- `pulp` (MILP solver for linear optimization)
-- `ortools` (alternative MILP solver)
-- `pyomo` (nonlinear optimization modeling)
-- `ipopt` (nonlinear solver backend for Pyomo)
-- `fastapi`, `uvicorn` (API)
-- `matplotlib` (visualization)
-- `click` (CLI)
-- `pytest` (testing)
-
-### System Dependencies
-For nonlinear optimization, you must have the IPOPT solver installed and available in your system PATH.
-
-#### macOS (with Homebrew):
-```bash
-brew install ipopt
-```
-
-#### Ubuntu/Debian:
-```bash
-sudo apt-get install coinor-ipopt
-```
-
-#### Other OS:
-See the [official IPOPT installation instructions](https://coin-or.github.io/Ipopt/INSTALL.html).
-
-### Verifying Installation
-After installing, verify in Python:
-```python
-import pyomo.environ
-```
-And check that `ipopt` is available:
-```bash
-ipopt -v
-```
-
-### Troubleshooting
-- If you see `ModuleNotFoundError: No module named 'pyomo'`, ensure you have run `pip install -r requirements.txt`.
-- If you see errors about IPOPT not found, ensure it is installed and available in your system PATH.
-- For nonlinear solver functionality, both `pyomo` and `ipopt` must be installed.
-
-## How the Solvers Work
-
-### BaseSolver (solvers/base.py)
-- **Purpose:** Defines a standard interface for all solvers via the `solve(data)` method.
-- **Why:** Ensures all solvers are interchangeable and code is extensible. Not strictly required, but highly recommended for professional codebases.
-- **Usage:** Do not instantiate directly. Inherit for new solver types.
-
-### LinearSolver (solvers/linear.py)
-- **Approach:** Uses Mixed Integer Linear Programming (MILP) via PuLP.
-- **Logic:**
-  - Decision variables: How much of each product to buy from each supplier in each period.
-  - Objective: Minimize total cost (procurement + logistics + holding).
-  - Constraints: Demand satisfaction, inventory balance, warehouse capacity, product shelf life, MOQ, etc.
-  - Returns a detailed procurement and inventory plan.
-- **Best for:** Small/medium problems where optimality is required.
-
-### HeuristicSolver (solvers/heuristic.py)
-- **Approach:** Greedy algorithm with local logic.
-- **Logic:**
-  - For each period, fulfill demand from the cheapest available supplier, respecting MOQ and supplier constraints.
-  - Uses inventory first, then orders as needed.
-  - Fast, but not always optimal.
-- **Best for:** Large or time-constrained problems, or as a quick baseline.
-
-## Visualization
-- Use the provided `utils/visualization.py` functions to plot procurement plans, inventory levels, and demand satisfaction.
-- Example usage:
-  ```python
-  from utils.visualization import plot_procurement_plan, plot_inventory_levels
-  plot_procurement_plan(solution['procurement_plan'])
-  plot_inventory_levels(solution['inventory'])
-  ```
-- Visualizations help you understand the process, bottlenecks, and results.
-
-## How to Run the Process
-- **Main Executor:** Run `main.py` for all main workflows.
-  - CLI: `python main.py cli`
-  - API: `python main.py api`
-  - Scenario analysis: `python main.py scenario`
-  - KPI calculation: `python main.py kpi`
-- **Direct CLI:** `python cli.py solve-linear ...`
-- **API:** `uvicorn api:app --reload`
-- **Tests:** `pytest`
-
-## Interpreting Outputs
-- **Solution:** Contains procurement plan, inventory levels, and status.
-- **KPIs:** Total cost, service level, inventory turnover, obsolescence.
-- **Visuals:** Use visualization functions to plot and interpret results.
-
-## Comments and Documentation
-- All code is commented for clarity, especially in solvers and utilities.
-- See each module for detailed docstrings and inline explanations.
+## Running & Testing
+- Install requirements: `pip install -r requirements.txt`
+- Run the app: `streamlit run app.py`
+- Run the E2E example: `python examples/e2e_example.py`
+- Run tests: `pytest --maxfail=3 --disable-warnings -v`
 
 ## License
 MIT
