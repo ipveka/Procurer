@@ -28,13 +28,14 @@ def save_plot(filename: str, title: str = ""):
     ax.set_ylim(bottom=0)
     plt.grid(True, linestyle='--', alpha=0.7)
     if title:
-        plt.title(title, fontsize=14, color='#2c3e50')
+        plt.title(title, fontsize=16, fontweight='bold', color='#2c3e50')
     plt.tight_layout()
-    plt.savefig(filename)
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Plot saved: {filename}")
 
 def plot_procurement_plan(procurement_plan: Dict, filename: str, title: str, products_to_plot=None, moqs=None):
+    plt.figure(figsize=(12, 8))
     data = defaultdict(lambda: defaultdict(float))
     for (product, supplier, period), qty in procurement_plan.items():
         data[(product, supplier)][period] += qty
@@ -43,16 +44,17 @@ def plot_procurement_plan(procurement_plan: Dict, filename: str, title: str, pro
     for (product, supplier), period_qty in data.items():
         periods = sorted(period_qty.keys())
         quantities = [period_qty[p] for p in periods]
-        plt.plot(periods, quantities, marker='o', label=f'{product}-{supplier}')
+        plt.plot(periods, quantities, marker='o', linewidth=2, markersize=6, label=f'{product}-{supplier}')
         # Plot MOQ line if provided
         if moqs and product in moqs:
             plt.axhline(moqs[product], color='red', linestyle='--', linewidth=1, label=f'MOQ {product}')
-    plt.xlabel('Period', fontsize=12)
-    plt.ylabel('Procurement Quantity', fontsize=12)
-    plt.legend()
+    plt.xlabel('Period', fontsize=14)
+    plt.ylabel('Procurement Quantity', fontsize=14)
+    plt.legend(fontsize=12)
     save_plot(filename, title)
 
 def plot_inventory_levels(inventory: Dict, filename: str, title: str, products_to_plot=None, safety_stocks=None):
+    plt.figure(figsize=(12, 8))
     data = defaultdict(lambda: defaultdict(float))
     for (product, period), qty in inventory.items():
         data[product][period] += qty
@@ -61,16 +63,17 @@ def plot_inventory_levels(inventory: Dict, filename: str, title: str, products_t
     for product, period_qty in data.items():
         periods = sorted(period_qty.keys())
         quantities = [period_qty[p] for p in periods]
-        plt.plot(periods, quantities, marker='o', label=product)
+        plt.plot(periods, quantities, marker='o', linewidth=2, markersize=6, label=product)
         # Plot safety stock line if provided
         if safety_stocks and product in safety_stocks:
             plt.axhline(safety_stocks[product], color='orange', linestyle='--', linewidth=1, label=f'Safety Stock {product}')
-    plt.xlabel('Period', fontsize=12)
-    plt.ylabel('Inventory Level', fontsize=12)
-    plt.legend()
+    plt.xlabel('Period', fontsize=14)
+    plt.ylabel('Inventory Level', fontsize=14)
+    plt.legend(fontsize=12)
     save_plot(filename, title)
 
 def plot_demand_vs_supply(demand: List[Any], shipments_plan: Dict, filename: str, title: str, products_to_plot=None):
+    plt.figure(figsize=(12, 8))
     demand_map = defaultdict(float)
     for d in demand:
         demand_map[(d.product_id, d.period)] += d.expected_quantity
@@ -84,11 +87,11 @@ def plot_demand_vs_supply(demand: List[Any], shipments_plan: Dict, filename: str
     for product in products:
         d_vals = [demand_map[(product, t)] for t in periods]
         s_vals = [supply_map[(product, t)] for t in periods]
-        plt.plot(periods, d_vals, label=f'Demand {product}', linestyle='--')
-        plt.plot(periods, s_vals, label=f'Supply {product}', marker='s')
-    plt.xlabel('Period', fontsize=12)
-    plt.ylabel('Quantity', fontsize=12)
-    plt.legend()
+        plt.plot(periods, d_vals, marker='o', linewidth=2, markersize=6, linestyle='--', label=f'Demand {product}')
+        plt.plot(periods, s_vals, marker='s', linewidth=2, markersize=6, label=f'Supply {product}')
+    plt.xlabel('Period', fontsize=14)
+    plt.ylabel('Quantity', fontsize=14)
+    plt.legend(fontsize=12)
     save_plot(filename, title)
 
 def render_table(headers, rows):
@@ -343,59 +346,59 @@ def generate_html_report(
     
     # Helper for 2x2 plot layout
     def create_2x2_plot_layout(plot_files, solver_name):
-        plots_html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">'
+        plots_html = '<div class="grid-container">'
         
         # Top left: Procurement Plan
         if f'{solver_name}_procurement' in plot_files:
             plots_html += f'''
-            <div style="text-align: center;">
+            <div class="plot-item">
                 <h4>Procurement Plan (Orders Placed)</h4>
                 <img src="{img_to_base64(plot_files[f"{solver_name}_procurement"])}" 
                      alt="{solver_name} Procurement Plan" 
-                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+                     style="max-width: 100%; height: auto;">
             </div>
             '''
         else:
-            plots_html += '<div style="text-align: center;"><h4>Procurement Plan</h4><p>No data available</p></div>'
+            plots_html += '<div class="plot-item"><h4>Procurement Plan</h4><p>No data available</p></div>'
         
         # Top right: Shipments Plan
         if f'{solver_name}_shipments' in plot_files:
             plots_html += f'''
-            <div style="text-align: center;">
+            <div class="plot-item">
                 <h4>Shipments Plan (Orders Received)</h4>
                 <img src="{img_to_base64(plot_files[f"{solver_name}_shipments"])}" 
                      alt="{solver_name} Shipments Plan" 
-                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+                     style="max-width: 100%; height: auto;">
             </div>
             '''
         else:
-            plots_html += '<div style="text-align: center;"><h4>Shipments Plan</h4><p>No data available</p></div>'
+            plots_html += '<div class="plot-item"><h4>Shipments Plan</h4><p>No data available</p></div>'
         
         # Bottom left: Inventory Levels
         if f'{solver_name}_inventory' in plot_files:
             plots_html += f'''
-            <div style="text-align: center;">
+            <div class="plot-item">
                 <h4>Inventory Levels</h4>
                 <img src="{img_to_base64(plot_files[f"{solver_name}_inventory"])}" 
                      alt="{solver_name} Inventory Levels" 
-                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+                     style="max-width: 100%; height: auto;">
             </div>
             '''
         else:
-            plots_html += '<div style="text-align: center;"><h4>Inventory Levels</h4><p>No data available</p></div>'
+            plots_html += '<div class="plot-item"><h4>Inventory Levels</h4><p>No data available</p></div>'
         
         # Bottom right: Demand vs Supply
         if f'{solver_name}_demand_supply' in plot_files:
             plots_html += f'''
-            <div style="text-align: center;">
+            <div class="plot-item">
                 <h4>Demand vs Supply</h4>
                 <img src="{img_to_base64(plot_files[f"{solver_name}_demand_supply"])}" 
                      alt="{solver_name} Demand vs Supply" 
-                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+                     style="max-width: 100%; height: auto;">
             </div>
             '''
         else:
-            plots_html += '<div style="text-align: center;"><h4>Demand vs Supply</h4><p>No data available</p></div>'
+            plots_html += '<div class="plot-item"><h4>Demand vs Supply</h4><p>No data available</p></div>'
         
         plots_html += '</div>'
         return plots_html
@@ -409,7 +412,7 @@ def generate_html_report(
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                 margin: 0; 
                 padding: 0;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #ffffff;
                 min-height: 100vh;
             }}
             .container {{
@@ -418,11 +421,10 @@ def generate_html_report(
                 padding: 20px;
             }}
             h1 {{ 
-                color: #ffffff; 
+                color: #2c3e50; 
                 font-size: 3em; 
                 margin-bottom: 0.5em; 
                 text-align: center;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
                 font-weight: 300;
                 letter-spacing: 2px;
             }}
@@ -470,19 +472,21 @@ def generate_html_report(
             .section {{ 
                 margin-bottom: 50px; 
                 padding: 30px; 
-                background: rgba(255, 255, 255, 0.95); 
+                background: #ffffff; 
                 border-radius: 15px; 
                 box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                border: 1px solid #e0e0e0;
             }}
             img {{ 
+                width: 100%;
                 max-width: 600px; 
-                margin: 15px; 
+                height: auto;
+                margin: 15px auto; 
                 border: 3px solid #3498db; 
                 border-radius: 12px; 
                 box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
                 transition: transform 0.3s ease, box-shadow 0.3s ease;
+                display: block;
             }}
             img:hover {{
                 transform: scale(1.02);
@@ -529,9 +533,8 @@ def generate_html_report(
                 text-align: center; 
                 margin: 30px 0; 
                 padding: 20px;
-                background: rgba(255, 255, 255, 0.7);
+                background: #f8f9fa;
                 border-radius: 15px;
-                backdrop-filter: blur(5px);
             }}
             .grid-container {{
                 display: grid;
@@ -539,25 +542,29 @@ def generate_html_report(
                 gap: 30px;
                 margin: 30px 0;
                 padding: 20px;
-                background: rgba(255, 255, 255, 0.7);
+                background: #f8f9fa;
                 border-radius: 15px;
-                backdrop-filter: blur(5px);
             }}
             .plot-item {{
                 text-align: center;
                 padding: 15px;
-                background: rgba(255, 255, 255, 0.9);
+                background: #ffffff;
                 border-radius: 12px;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                 transition: transform 0.3s ease;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
             }}
             .plot-item:hover {{
                 transform: translateY(-5px);
             }}
             .plot-item img {{
-                max-width: 100%;
+                width: 100%;
+                max-width: 550px;
                 height: auto;
                 margin: 10px 0;
+                object-fit: contain;
             }}
             ul {{
                 line-height: 1.8;
@@ -694,6 +701,7 @@ def generate_html_report(
         '''
     
     html += """
+        </div>
     </body>
     </html>
     """

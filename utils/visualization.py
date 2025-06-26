@@ -8,9 +8,9 @@ from typing import Dict, Tuple, Any, List
 # All visualization logic is documented for clarity and maintainability.
 
 # Standard plot configuration for consistency
-PLOT_FIGSIZE = (8, 6)
-PLOT_FONTSIZE = 12
-LEGEND_FONTSIZE = 10
+PLOT_FIGSIZE = (12, 8)
+PLOT_FONTSIZE = 14
+LEGEND_FONTSIZE = 12
 GRID_ALPHA = 0.7
 GRID_LINESTYLE = '--'
 
