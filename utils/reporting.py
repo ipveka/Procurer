@@ -1,3 +1,7 @@
+# reporting.py: Utilities for generating HTML and in-app reports for supply chain optimization results.
+# Provides functions for KPI explanations, variable/assumption documentation, and solver result summaries.
+# All reporting logic is documented for clarity and maintainability.
+
 import os
 import json
 import base64
@@ -147,10 +151,15 @@ def generate_html_report(
       <h2>Variables & Assumptions</h2>
       <ul>
         <li><b>Products:</b> Each product has a unique ID, name, cost per supplier, shelf life (expiration), and minimum order quantity (MOQ).</li>
-        <li><b>Suppliers:</b> Each supplier offers certain products, with minimum order values and lead times per product.</li>
+        <li><b>Suppliers:</b> Each supplier offers certain products and has lead times per product.</li>
         <li><b>Demand:</b> Forecasted for each product and period. Assumed to be known and deterministic for this scenario.</li>
         <li><b>Inventory:</b> Initial stock, holding cost, warehouse capacity, and <b>safety stock</b> (minimum required inventory at all times) for each product.</li>
         <li><b>Logistics Cost:</b> Per-unit and fixed costs for each supplier-product pair.</li>
+      </ul>
+      <b>Constraints:</b>
+      <ul>
+        <li>All constraints in the model are <b>hard constraints</b> (must be satisfied): demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and MOQ.</li>
+        <li>In some advanced scenarios, <b>soft constraints</b> (penalties for violations) can be used for flexibility or robustness, e.g., allowing small backorders or exceeding capacity with a cost penalty.</li>
       </ul>
       <b>Assumptions:</b>
       <ul>
@@ -171,7 +180,6 @@ def generate_html_report(
         <li><b>safety_stock</b>: Minimum inventory required for each product at all times (buffer against uncertainty).</li>
         <li><b>unit_cost_by_supplier</b>: Cost per unit for each product from each supplier.</li>
         <li><b>MOQ</b>: Minimum order quantity for each product.</li>
-        <li><b>minimum_order_value</b>: Minimum order value per supplier per order.</li>
         <li><b>lead_times</b>: Number of periods between order and delivery for each product-supplier pair.</li>
         <li><b>cost_per_unit</b>: Logistics cost per unit shipped.</li>
         <li><b>fixed_cost</b>: Fixed logistics cost per shipment.</li>
@@ -244,8 +252,8 @@ def generate_html_report(
     )
     suppliers_table = table_section(
         "Suppliers",
-        ["ID", "Name", "Products Offered", "Min Order Value", "Lead Times"],
-        [[s.id, s.name, ', '.join(s.products_offered), s.minimum_order_value, json.dumps(s.lead_times)] for s in data.get('suppliers', [])]
+        ["ID", "Name", "Products Offered", "Lead Times"],
+        [[s.id, s.name, ', '.join(s.products_offered), json.dumps(s.lead_times)] for s in data.get('suppliers', [])]
     )
     demand_table = table_section(
         "Demand Forecast",

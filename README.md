@@ -1,150 +1,43 @@
-# Procurer: Professional Python Supply Chain Optimization System
+# Procurer: Professional Supply Chain Optimization
 
-Procurer is a comprehensive, modular, and extensible Python system for multi-period, multi-product, multi-supplier procurement optimization. It supports both exact (MILP) and heuristic approaches, scenario analysis, risk assessment, and more.
+Procurer is a modular, professional Python system for multi-period, multi-product, multi-supplier procurement planning. It features:
 
-## Features
-- Multi-period, multi-product, multi-supplier procurement optimization
-- Linear (MILP) and heuristic solvers
-- Scenario analysis, rolling horizon, risk assessment
-- CLI and optional FastAPI web API
-- Modular, object-oriented design with type hints
-- Pydantic data models and robust validation
-- Visualization utilities for results
+- Streamlit UI for scenario analysis and reporting
+- Linear (MILP), nonlinear (NLP), and heuristic solvers
+- Scenario analysis and comprehensive reporting
+- Fully documented, extensible, and robust codebase
 
-## Solver Logic & Approach
+## Key Features
+- **Optimization**: Minimize procurement, logistics, and holding costs while meeting demand and respecting all constraints (capacity, safety stock, MOQ, shelf life, etc.)
+- **Multiple Solvers**: Compare exact (MILP), nonlinear (discount-aware), and heuristic (fast, interpretable) approaches
+- **Scenario Analysis**: Explore the impact of different policies, demand, and supplier options
+- **Professional Reporting**: HTML and in-app reports with clear explanations, KPIs, and visualizations
+- **Tested & Documented**: Comprehensive tests and detailed documentation throughout
 
-- **Linear Solver (MILP):**
-  - Finds the optimal procurement and inventory plan by minimizing total cost (procurement, logistics, holding).
-  - Respects all constraints: demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and minimum order quantity (MOQ).
-  - Uses a mathematical programming solver to guarantee the best solution for the given data.
+## Solver Architecture (2024 Refactor)
+All solvers now follow a clear, maintainable structure:
+- **Lookup Table Preparation**: All data is mapped for fast access in a dedicated helper
+- **Variable/Model Creation**: Variables and models are created in a single, well-documented helper
+- **Objective & Constraints**: Each is added in a clear, grouped fashion, with helpers and comments
+- **Solution Extraction**: Output is parsed and returned in a consistent format
 
-- **Nonlinear Solver (NLP with Discounts):**
-  - Similar to the linear solver, but models quantity discounts: if you buy more than a threshold, you get a lower price for the extra units.
-  - Minimizes total cost, including the effect of discounts, using a nonlinear optimization approach.
+This structure makes it easy to:
+- Understand and debug solver logic
+- Extend with new constraints, objectives, or solver types
+- Maintain and test the codebase
 
-- **Heuristic Solver:**
-  - Works period by period, fulfilling demand and safety stock from the cheapest available supplier.
-  - Fast and simple, but may not find the absolute best solution.
-  - Applies discounts greedily if order quantity exceeds the discount threshold.
+**Inputs and outputs remain unchanged**—all APIs and data formats are stable.
 
-## Project Structure
-```
-Procurer/
-  models/         # Pydantic data models
-  solvers/        # Optimization and heuristic solvers
-  utils/          # Utilities (logging, validation, metrics, visualization, etc.)
-  data/           # Example datasets
-  tests/          # Unit and integration tests
-  cli.py          # CLI entry point
-  api.py          # FastAPI web API
-  main.py         # Main orchestration script
-  requirements.txt
-  README.md
-```
+## How to Contribute or Extend
+- To add a new solver, subclass `BaseSolver` and follow the helper-based structure (see `solvers/linear.py`, `solvers/nonlinear.py`, `solvers/heuristic.py`)
+- To add new constraints or objectives, add a helper or extend the relevant method
+- All code should be type-annotated and clearly commented
+- Run `pytest` to verify correctness after any change
 
-## Requirements and Installation
-
-### Python Dependencies
-All required Python packages are listed in `requirements.txt`. Install them with:
-
-```bash
-pip install -r requirements.txt
-```
-
-Key dependencies:
-- `pydantic` (data validation)
-- `pulp` (MILP solver for linear optimization)
-- `ortools` (alternative MILP solver)
-- `pyomo` (nonlinear optimization modeling)
-- `ipopt` (nonlinear solver backend for Pyomo)
-- `fastapi`, `uvicorn` (API)
-- `matplotlib` (visualization)
-- `click` (CLI)
-- `pytest` (testing)
-
-### System Dependencies
-For nonlinear optimization, you must have the IPOPT solver installed and available in your system PATH.
-
-#### macOS (with Homebrew):
-```bash
-brew install ipopt
-```
-
-#### Ubuntu/Debian:
-```bash
-sudo apt-get install coinor-ipopt
-```
-
-#### Other OS:
-See the [official IPOPT installation instructions](https://coin-or.github.io/Ipopt/INSTALL.html).
-
-### Verifying Installation
-After installing, verify in Python:
-```python
-import pyomo.environ
-```
-And check that `ipopt` is available:
-```bash
-ipopt -v
-```
-
-### Troubleshooting
-- If you see `ModuleNotFoundError: No module named 'pyomo'`, ensure you have run `pip install -r requirements.txt`.
-- If you see errors about IPOPT not found, ensure it is installed and available in your system PATH.
-- For nonlinear solver functionality, both `pyomo` and `ipopt` must be installed.
-
-## How the Solvers Work
-
-### BaseSolver (solvers/base.py)
-- **Purpose:** Defines a standard interface for all solvers via the `solve(data)` method.
-- **Why:** Ensures all solvers are interchangeable and code is extensible. Not strictly required, but highly recommended for professional codebases.
-- **Usage:** Do not instantiate directly. Inherit for new solver types.
-
-### LinearSolver (solvers/linear.py)
-- **Approach:** Uses Mixed Integer Linear Programming (MILP) via PuLP.
-- **Logic:**
-  - Decision variables: How much of each product to buy from each supplier in each period.
-  - Objective: Minimize total cost (procurement + logistics + holding).
-  - Constraints: Demand satisfaction, inventory balance, warehouse capacity, product shelf life, MOQ, etc.
-  - Returns a detailed procurement and inventory plan.
-- **Best for:** Small/medium problems where optimality is required.
-
-### HeuristicSolver (solvers/heuristic.py)
-- **Approach:** Greedy algorithm with local logic.
-- **Logic:**
-  - For each period, fulfill demand from the cheapest available supplier, respecting MOQ and supplier constraints.
-  - Uses inventory first, then orders as needed.
-  - Fast, but not always optimal.
-- **Best for:** Large or time-constrained problems, or as a quick baseline.
-
-## Visualization
-- Use the provided `utils/visualization.py` functions to plot procurement plans, inventory levels, and demand satisfaction.
-- Example usage:
-  ```python
-  from utils.visualization import plot_procurement_plan, plot_inventory_levels
-  plot_procurement_plan(solution['procurement_plan'])
-  plot_inventory_levels(solution['inventory'])
-  ```
-- Visualizations help you understand the process, bottlenecks, and results.
-
-## How to Run the Process
-- **Main Executor:** Run `main.py` for all main workflows.
-  - CLI: `python main.py cli`
-  - API: `python main.py api`
-  - Scenario analysis: `python main.py scenario`
-  - KPI calculation: `python main.py kpi`
-- **Direct CLI:** `python cli.py solve-linear ...`
-- **API:** `uvicorn api:app --reload`
-- **Tests:** `pytest`
-
-## Interpreting Outputs
-- **Solution:** Contains procurement plan, inventory levels, and status.
-- **KPIs:** Total cost, service level, inventory turnover, obsolescence.
-- **Visuals:** Use visualization functions to plot and interpret results.
-
-## Comments and Documentation
-- All code is commented for clarity, especially in solvers and utilities.
-- See each module for detailed docstrings and inline explanations.
+## Running & Testing
+- Install requirements: `pip install -r requirements.txt`
+- Run the app: `streamlit run app.py`
+- Run tests: `pytest --maxfail=3 --disable-warnings -v`
 
 ## License
 MIT

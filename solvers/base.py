@@ -20,11 +20,11 @@ class BaseSolver(ABC):
     @abstractmethod
     def solve(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Solve the procurement optimization problem.
+        Abstract method to solve the procurement optimization problem.
         Args:
             data: Dictionary containing all required input data.
         Returns:
-            Dictionary with solution details.
+            Dictionary with solution details (e.g., procurement plan, inventory plan).
         """
         pass
 
@@ -32,6 +32,7 @@ class NonlinearSolver(BaseSolver):
     """
     NonlinearSolver for Procurement Optimization with Quantity Discounts.
     This solver handles nonlinear procurement costs due to quantity discounts (e.g., buy > threshold units, get discount on extra units).
+    This is a placeholder and should be implemented in solvers/nonlinear.py.
     """
     def solve(self, data: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError("NonlinearSolver must be implemented in solvers/nonlinear.py") 

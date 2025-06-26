@@ -55,10 +55,15 @@
       <h2>Variables & Assumptions</h2>
       <ul>
         <li><b>Products:</b> Each product has a unique ID, name, cost per supplier, shelf life (expiration), and minimum order quantity (MOQ).</li>
-        <li><b>Suppliers:</b> Each supplier offers certain products, with minimum order values and lead times per product.</li>
+        <li><b>Suppliers:</b> Each supplier offers certain products and has lead times per product.</li>
         <li><b>Demand:</b> Forecasted for each product and period. Assumed to be known and deterministic for this scenario.</li>
         <li><b>Inventory:</b> Initial stock, holding cost, warehouse capacity, and <b>safety stock</b> (minimum required inventory at all times) for each product.</li>
         <li><b>Logistics Cost:</b> Per-unit and fixed costs for each supplier-product pair.</li>
+      </ul>
+      <b>Constraints:</b>
+      <ul>
+        <li>All constraints in the model are <b>hard constraints</b> (must be satisfied): demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and MOQ.</li>
+        <li>In some advanced scenarios, <b>soft constraints</b> (penalties for violations) can be used for flexibility or robustness, e.g., allowing small backorders or exceeding capacity with a cost penalty.</li>
       </ul>
       <b>Assumptions:</b>
       <ul>
@@ -79,7 +84,6 @@
         <li><b>safety_stock</b>: Minimum inventory required for each product at all times (buffer against uncertainty).</li>
         <li><b>unit_cost_by_supplier</b>: Cost per unit for each product from each supplier.</li>
         <li><b>MOQ</b>: Minimum order quantity for each product.</li>
-        <li><b>minimum_order_value</b>: Minimum order value per supplier per order.</li>
         <li><b>lead_times</b>: Number of periods between order and delivery for each product-supplier pair.</li>
         <li><b>cost_per_unit</b>: Logistics cost per unit shipped.</li>
         <li><b>fixed_cost</b>: Fixed logistics cost per shipment.</li>
@@ -88,7 +92,7 @@
     
             <h3 class="subsection-title">Input Data Tables</h3>
             <div class="section"><h2>Products</h2><table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Unit Cost by Supplier</th><th>Expiration Periods</th><th>MOQ</th></tr></thead><tbody><tr><td>P1</td><td>Widget</td><td>{"S1": 10.0, "S2": 11.0, "S3": 12.0}</td><td>12</td><td>20</td></tr><tr><td>P2</td><td>Gadget</td><td>{"S1": 20.0, "S2": 21.0, "S3": 15.0}</td><td>8</td><td>15</td></tr></tbody></table></div>
-            <div class="section"><h2>Suppliers</h2><table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Products Offered</th><th>Min Order Value</th><th>Lead Times</th></tr></thead><tbody><tr><td>S1</td><td>SupplierA</td><td>P1, P2</td><td>1.0</td><td>{"P1": 1, "P2": 1}</td></tr><tr><td>S2</td><td>SupplierB</td><td>P1, P2</td><td>1.0</td><td>{"P1": 1, "P2": 1}</td></tr><tr><td>S3</td><td>SupplierC</td><td>P1, P2</td><td>1.0</td><td>{"P1": 1, "P2": 1}</td></tr></tbody></table></div>
+            <div class="section"><h2>Suppliers</h2><table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Products Offered</th><th>Lead Times</th></tr></thead><tbody><tr><td>S1</td><td>SupplierA</td><td>P1, P2</td><td>{"P1": 1, "P2": 1}</td></tr><tr><td>S2</td><td>SupplierB</td><td>P1, P2</td><td>{"P1": 1, "P2": 1}</td></tr><tr><td>S3</td><td>SupplierC</td><td>P1, P2</td><td>{"P1": 1, "P2": 1}</td></tr></tbody></table></div>
             <div class="section"><h2>Demand Forecast</h2><table class="data-table"><thead><tr><th>Product</th><th>Period</th><th>Expected Quantity</th></tr></thead><tbody><tr><td>P1</td><td>1</td><td>50.0</td></tr><tr><td>P1</td><td>2</td><td>40.0</td></tr><tr><td>P1</td><td>3</td><td>45.0</td></tr><tr><td>P1</td><td>4</td><td>55.0</td></tr><tr><td>P2</td><td>1</td><td>30.0</td></tr><tr><td>P2</td><td>2</td><td>35.0</td></tr><tr><td>P2</td><td>3</td><td>32.0</td></tr><tr><td>P2</td><td>4</td><td>38.0</td></tr></tbody></table></div>
             <div class="section"><h2>Inventory Policy</h2><table class="data-table"><thead><tr><th>Product</th><th>Initial Stock</th><th>Holding Cost</th><th>Warehouse Capacity</th><th>Safety Stock</th></tr></thead><tbody><tr><td>P1</td><td>10.0</td><td>0.5</td><td>80.0</td><td>15.0</td></tr><tr><td>P2</td><td>5.0</td><td>0.6</td><td>60.0</td><td>10.0</td></tr></tbody></table></div>
             <div class="section"><h2>Logistics Cost</h2><table class="data-table"><thead><tr><th>Supplier</th><th>Product</th><th>Cost per Unit</th><th>Fixed Cost</th></tr></thead><tbody><tr><td>S1</td><td>P1</td><td>2.0</td><td>10.0</td></tr><tr><td>S1</td><td>P2</td><td>2.5</td><td>10.0</td></tr><tr><td>S2</td><td>P1</td><td>2.2</td><td>10.0</td></tr><tr><td>S2</td><td>P2</td><td>2.7</td><td>10.0</td></tr><tr><td>S3</td><td>P1</td><td>2.1</td><td>10.0</td></tr><tr><td>S3</td><td>P2</td><td>2.3</td><td>10.0</td></tr></tbody></table></div>
