@@ -1,6 +1,6 @@
-# Procurer: Professional Supply Chain Optimization
+# Procurer: Supply Chain Optimization
 
-Procurer is a modular, professional Python system for multi-period, multi-product, multi-supplier procurement planning with realistic lead time modeling. It features:
+Procurer is a modular Python system for multi-period, multi-product, multi-supplier procurement planning with realistic lead time modeling. It features:
 
 - Streamlit UI for scenario analysis and reporting
 - Linear (MILP), nonlinear (NLP), and heuristic solvers
