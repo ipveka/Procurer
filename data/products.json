@@ -1,0 +1,18 @@
+[
+  {
+    "id": "P1",
+    "name": "Widget",
+    "unit_cost_by_supplier": {"S1": 10.0, "S2": 11.0, "S3": 12.0},
+    "expiration_periods": 12,
+    "MOQ": 20,
+    "discounts": {"threshold": 30, "discount": 0.05}
+  },
+  {
+    "id": "P2",
+    "name": "Gadget",
+    "unit_cost_by_supplier": {"S1": 20.0, "S2": 21.0, "S3": 15.0},
+    "expiration_periods": 8,
+    "MOQ": 15,
+    "discounts": {"threshold": 40, "discount": 0.10}
+  }
+] 

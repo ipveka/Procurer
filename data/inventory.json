@@ -1,0 +1,4 @@
+[
+  {"product_id": "P1", "initial_stock": 10, "holding_cost": 0.5, "warehouse_capacity": 80, "safety_stock": 15},
+  {"product_id": "P2", "initial_stock": 5, "holding_cost": 0.6, "warehouse_capacity": 60, "safety_stock": 10}
+] 

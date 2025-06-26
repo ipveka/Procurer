@@ -1,0 +1,23 @@
+[
+  {
+    "id": "S1",
+    "name": "SupplierA",
+    "products_offered": ["P1", "P2"],
+    "minimum_order_value": 1.0,
+    "lead_times": {"P1": 1, "P2": 1}
+  },
+  {
+    "id": "S2",
+    "name": "SupplierB",
+    "products_offered": ["P1", "P2"],
+    "minimum_order_value": 1.0,
+    "lead_times": {"P1": 1, "P2": 1}
+  },
+  {
+    "id": "S3",
+    "name": "SupplierC",
+    "products_offered": ["P1", "P2"],
+    "minimum_order_value": 1.0,
+    "lead_times": {"P1": 1, "P2": 1}
+  }
+] 
