@@ -1,0 +1,10 @@
+[
+  {"product_id": "P1", "period": 1, "expected_quantity": 50},
+  {"product_id": "P1", "period": 2, "expected_quantity": 40},
+  {"product_id": "P1", "period": 3, "expected_quantity": 45},
+  {"product_id": "P1", "period": 4, "expected_quantity": 55},
+  {"product_id": "P2", "period": 1, "expected_quantity": 30},
+  {"product_id": "P2", "period": 2, "expected_quantity": 35},
+  {"product_id": "P2", "period": 3, "expected_quantity": 32},
+  {"product_id": "P2", "period": 4, "expected_quantity": 38}
+] 

@@ -1,0 +1,8 @@
+[
+  {"supplier_id": "S1", "product_id": "P1", "cost_per_unit": 2.0, "fixed_cost": 10.0},
+  {"supplier_id": "S1", "product_id": "P2", "cost_per_unit": 2.5, "fixed_cost": 10.0},
+  {"supplier_id": "S2", "product_id": "P1", "cost_per_unit": 2.2, "fixed_cost": 10.0},
+  {"supplier_id": "S2", "product_id": "P2", "cost_per_unit": 2.7, "fixed_cost": 10.0},
+  {"supplier_id": "S3", "product_id": "P1", "cost_per_unit": 2.1, "fixed_cost": 10.0},
+  {"supplier_id": "S3", "product_id": "P2", "cost_per_unit": 2.3, "fixed_cost": 10.0}
+] 
