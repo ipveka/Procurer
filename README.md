@@ -11,63 +11,21 @@ Procurer is a comprehensive, modular, and extensible Python system for multi-per
 - Pydantic data models and robust validation
 - Visualization utilities for results
 
-## Mathematical Formulation & Solver Details
+## Solver Logic & Approach
 
-### Model Variables
-- **Indices:**
-  - $i$: Product
-  - $j$: Supplier
-  - $t$: Period
-- **Decision Variables:**
-  - $p_{i,j,t}$: Quantity of product $i$ procured from supplier $j$ in period $t$
-  - $inv_{i,t}$: Inventory of product $i$ at the end of period $t$
+- **Linear Solver (MILP):**
+  - Finds the optimal procurement and inventory plan by minimizing total cost (procurement, logistics, holding).
+  - Respects all constraints: demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and minimum order quantity (MOQ).
+  - Uses a mathematical programming solver to guarantee the best solution for the given data.
 
-### Linear Solver (MILP)
-**Objective:**
-Minimize total cost (procurement, logistics, holding):
+- **Nonlinear Solver (NLP with Discounts):**
+  - Similar to the linear solver, but models quantity discounts: if you buy more than a threshold, you get a lower price for the extra units.
+  - Minimizes total cost, including the effect of discounts, using a nonlinear optimization approach.
 
-$$
-\min \sum_{i,j,t} p_{i,j,t} \cdot c_{i,j} + \sum_{i,j,t} p_{i,j,t} \cdot l_{j,i} + \sum_{i,t} inv_{i,t} \cdot h_i
-$$
-Where:
-- $c_{i,j}$: Unit cost of product $i$ from supplier $j$
-- $l_{j,i}$: Logistics cost per unit
-- $h_i$: Holding cost per unit per period
-
-**Constraints:**
-- **Inventory balance:**
-  - $inv_{i,t} = inv_{i,t-1} + \sum_j p_{i,j,t} - d_{i,t}$
-- **Warehouse capacity:**
-  - $inv_{i,t} \leq$ warehouse capacity
-- **Safety stock:**
-  - $inv_{i,t} \geq$ safety stock
-- **Shelf life:**
-  - $inv_{i,t} = 0$ if $t$ exceeds expiration
-- **MOQ:**
-  - If $p_{i,j,t} > 0$, then $p_{i,j,t} \geq$ MOQ
-
-### Nonlinear Solver (NLP with Quantity Discounts)
-**Objective:**
-Minimize total cost, where procurement cost is piecewise nonlinear due to discounts:
-
-$$
-\min \sum_{i,j,t} \text{PiecewiseCost}(p_{i,j,t}) + \sum_{i,j,t} p_{i,j,t} \cdot l_{j,i} + \sum_{i,t} inv_{i,t} \cdot h_i
-$$
-Where:
-- $\text{PiecewiseCost}(p_{i,j,t}) = \begin{cases}
-  p_{i,j,t} \cdot c_{i,j} & \text{if } p_{i,j,t} \leq \text{threshold} \\
-  \text{threshold} \cdot c_{i,j} + (p_{i,j,t} - \text{threshold}) \cdot c_{i,j} \cdot (1-\text{discount}) & \text{if } p_{i,j,t} > \text{threshold}
-\end{cases}$
-
-**Constraints:** Same as linear solver.
-
-### Heuristic Solver
-- Fulfills demand and safety stock period by period, from the cheapest supplier, using the same constraints as above, but does not guarantee global optimality.
-- Applies discounts in a greedy fashion if order quantity exceeds threshold.
-
-### Discount Handling
-- **Discounts** are defined per product as `{ "threshold": int, "discount": float }`.
-- If order quantity for a product in a period from a supplier exceeds the threshold, the discount applies to units above the threshold.
+- **Heuristic Solver:**
+  - Works period by period, fulfilling demand and safety stock from the cheapest available supplier.
+  - Fast and simple, but may not find the absolute best solution.
+  - Applies discounts greedily if order quantity exceeds the discount threshold.
 
 ## Project Structure
 ```
