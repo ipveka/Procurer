@@ -19,20 +19,20 @@ class NonlinearSolver(BaseSolver):
         # Step 1: Prepare data and lookup tables
         (
             product_ids, supplier_ids, periods,
-            product_map, supplier_map, demand_map, inventory_map, logistics_map
+            product_map, supplier_map, demand_map, inventory_map, logistics_map, lead_time_map
         ) = self._prepare_lookups(data)
 
         # Step 2: Build Pyomo model
-        m = self._build_model(product_ids, supplier_ids, periods, product_map, inventory_map, logistics_map, demand_map)
+        m = self._build_model(product_ids, supplier_ids, periods, product_map, inventory_map, logistics_map, demand_map, lead_time_map)
 
         # Step 3: Solve the model
         solver = pyo.SolverFactory('ipopt')
         result = solver.solve(m, tee=False)
 
         # Step 4: Extract and return solution
-        return self._extract_solution(m, result, product_ids, supplier_ids, periods)
+        return self._extract_solution(m, result, product_ids, supplier_ids, periods, lead_time_map)
 
-    def _prepare_lookups(self, data: Dict[str, Any]) -> Tuple[List[str], List[str], List[int], Dict, Dict, Dict, Dict, Dict]:
+    def _prepare_lookups(self, data: Dict[str, Any]) -> Tuple[List[str], List[str], List[int], Dict, Dict, Dict, Dict, Dict, Dict]:
         """Build lookup tables for fast access."""
         products = data['products']
         suppliers = data['suppliers']
@@ -47,9 +47,11 @@ class NonlinearSolver(BaseSolver):
         demand_map = {(d.product_id, d.period): d.expected_quantity for d in demand}
         inventory_map = {i.product_id: i for i in inventory}
         logistics_map = {(l.supplier_id, l.product_id): l for l in logistics_cost}
-        return product_ids, supplier_ids, periods, product_map, supplier_map, demand_map, inventory_map, logistics_map
+        # Lead time lookup: (supplier_id, product_id) -> lead_time
+        lead_time_map = {(s.id, p.id): s.lead_times.get(p.id, 0) for s in suppliers for p in products}
+        return product_ids, supplier_ids, periods, product_map, supplier_map, demand_map, inventory_map, logistics_map, lead_time_map
 
-    def _build_model(self, product_ids, supplier_ids, periods, product_map, inventory_map, logistics_map, demand_map):
+    def _build_model(self, product_ids, supplier_ids, periods, product_map, inventory_map, logistics_map, demand_map, lead_time_map):
         """Build the Pyomo model, variables, objective, and constraints."""
         m = pyo.ConcreteModel()  # type: ignore[attr-defined]
         m.P = pyo.Set(initialize=product_ids)  # type: ignore[attr-defined]
@@ -101,10 +103,19 @@ class NonlinearSolver(BaseSolver):
         # Constraints
         def inventory_balance_rule(m, i, t):
             if t == periods[0]:
-                return (inventory_map[i].initial_stock + sum(m.procure[i, j, t] for j in m.S) - demand_map.get((i, t), 0) == m.inv[i, t])
+                # For first period, only consider shipments that arrive in time (lead_time = 0)
+                shipments = sum(m.procure[i, j, t] for j in m.S if lead_time_map.get((j, i), 0) == 0)
+                return (inventory_map[i].initial_stock + shipments - demand_map.get((i, t), 0) == m.inv[i, t])
             else:
+                # For subsequent periods, consider shipments from orders placed earlier
                 prev_t = periods[periods.index(t)-1]
-                return (m.inv[i, prev_t] + sum(m.procure[i, j, t] for j in m.S) - demand_map.get((i, t), 0) == m.inv[i, t])
+                shipments = sum(
+                    m.procure[i, j, order_period] 
+                    for j in m.S 
+                    for order_period in periods 
+                    if order_period + lead_time_map.get((j, i), 0) == t
+                )
+                return (m.inv[i, prev_t] + shipments - demand_map.get((i, t), 0) == m.inv[i, t])
         m.inventory_balance = pyo.Constraint(m.P, m.T, rule=inventory_balance_rule)  # type: ignore[attr-defined]
 
         def warehouse_cap_rule(m, i, t):
@@ -128,24 +139,41 @@ class NonlinearSolver(BaseSolver):
 
         return m
 
-    def _extract_solution(self, m, result, product_ids, supplier_ids, periods):
+    def _extract_solution(self, m, result, product_ids, supplier_ids, periods, lead_time_map):
         """Extract the solution from the solved Pyomo model."""
         procurement_plan = {}
+        shipments_plan = {}
         inventory_plan = {}
+        
+        # Extract procurement plan (when orders are placed)
         for i in product_ids:
             for j in supplier_ids:
                 for t in periods:
                     qty = pyo.value(m.procure[i, j, t])
                     if qty and qty > 0:
                         procurement_plan[(i, j, t)] = qty
+                        
+                        # Calculate when this order will arrive (shipment)
+                        lead_time = lead_time_map.get((j, i), 0)
+                        arrival_period = t + lead_time
+                        if arrival_period in periods:
+                            shipments_plan[(i, j, arrival_period)] = shipments_plan.get((i, j, arrival_period), 0) + qty
+        
+        # Extract inventory plan
+        for i in product_ids:
             for t in periods:
                 inv_qty = pyo.value(m.inv[i, t])
                 if inv_qty is not None:
                     inventory_plan[(i, t)] = inv_qty
+        
+        # Generate complete procurement plan with all combinations
+        complete_procurement_plan = self._complete_procurement_plan(procurement_plan, product_ids, supplier_ids, periods)
+        
         solution = {
             'status': str(result.solver.status),
             'objective': pyo.value(m.obj),
-            'procurement_plan': procurement_plan,
+            'procurement_plan': complete_procurement_plan,
+            'shipments_plan': shipments_plan,
             'inventory': inventory_plan
         }
         return solution 

@@ -28,7 +28,7 @@ class LinearSolver(BaseSolver):
         # Step 1: Prepare data and lookup tables
         (
             product_ids, supplier_ids, periods,
-            product_map, supplier_map, demand_map, inventory_map, logistics_map
+            product_map, supplier_map, demand_map, inventory_map, logistics_map, lead_time_map
         ) = self._prepare_lookups(data)
 
         # Step 2: Create MILP variables
@@ -41,7 +41,7 @@ class LinearSolver(BaseSolver):
         self._add_constraints(
             prob, p_vars, inv_vars, y_vars,
             product_ids, supplier_ids, periods,
-            product_map, inventory_map, demand_map, logistics_map
+            product_map, inventory_map, demand_map, logistics_map, lead_time_map
         )
 
         # Step 5: Solve the problem
@@ -49,9 +49,9 @@ class LinearSolver(BaseSolver):
         status = LpStatus[prob.status]
 
         # Step 6: Extract and return solution
-        return self._extract_solution(status, prob, p_vars, inv_vars, product_ids, supplier_ids, periods)
+        return self._extract_solution(status, prob, p_vars, inv_vars, product_ids, supplier_ids, periods, lead_time_map)
 
-    def _prepare_lookups(self, data: Dict[str, Any]) -> Tuple[List[str], List[str], List[int], Dict, Dict, Dict, Dict, Dict]:
+    def _prepare_lookups(self, data: Dict[str, Any]) -> Tuple[List[str], List[str], List[int], Dict, Dict, Dict, Dict, Dict, Dict]:
         """Build lookup tables for fast access."""
         products = data['products']
         suppliers = data['suppliers']
@@ -66,7 +66,9 @@ class LinearSolver(BaseSolver):
         demand_map = {(d.product_id, d.period): d.expected_quantity for d in demand}
         inventory_map = {i.product_id: i for i in inventory}
         logistics_map = {(l.supplier_id, l.product_id): l for l in logistics_cost}
-        return product_ids, supplier_ids, periods, product_map, supplier_map, demand_map, inventory_map, logistics_map
+        # Lead time lookup: (supplier_id, product_id) -> lead_time
+        lead_time_map = {(s.id, p.id): s.lead_times.get(p.id, 0) for s in suppliers for p in products}
+        return product_ids, supplier_ids, periods, product_map, supplier_map, demand_map, inventory_map, logistics_map, lead_time_map
 
     def _create_variables(self, product_ids, supplier_ids, periods):
         """Create MILP variables for procurement, inventory, and MOQ enforcement."""
@@ -98,22 +100,31 @@ class LinearSolver(BaseSolver):
 
     def _add_constraints(self, prob, p_vars, inv_vars, y_vars,
                          product_ids, supplier_ids, periods,
-                         product_map, inventory_map, demand_map, logistics_map):
+                         product_map, inventory_map, demand_map, logistics_map, lead_time_map):
         """Add all constraints to the MILP problem."""
         for i in product_ids:
             for t in periods:
-                # Inventory balance constraint
+                # Inventory balance constraint with lead times
                 if t == periods[0]:
+                    # For first period, only consider shipments that arrive in time (lead_time = 0)
+                    shipments = lpSum(p_vars[i, j, t] for j in supplier_ids if lead_time_map.get((j, i), 0) == 0)
                     prob += (
                         inventory_map[i].initial_stock
-                        + lpSum(p_vars[i, j, t] for j in supplier_ids)
+                        + shipments
                         - demand_map.get((i, t), 0)
                         == inv_vars[i, t]
                     ), f"InventoryBalance_{i}_{t}"
                 else:
+                    # For subsequent periods, consider shipments from orders placed earlier
+                    shipments = lpSum(
+                        p_vars[i, j, order_period] 
+                        for j in supplier_ids 
+                        for order_period in periods 
+                        if order_period + lead_time_map.get((j, i), 0) == t
+                    )
                     prob += (
                         inv_vars[i, periods[periods.index(t)-1]]
-                        + lpSum(p_vars[i, j, t] for j in supplier_ids)
+                        + shipments
                         - demand_map.get((i, t), 0)
                         == inv_vars[i, t]
                     ), f"InventoryBalance_{i}_{t}"
@@ -137,20 +148,39 @@ class LinearSolver(BaseSolver):
                     bigM = 1e6
                     prob += p_vars[i, j, t] <= bigM * y_vars[i, j, t], f"MOQ_bigM_{i}_{j}_{t}"
 
-    def _extract_solution(self, status, prob, p_vars, inv_vars, product_ids, supplier_ids, periods):
+    def _extract_solution(self, status, prob, p_vars, inv_vars, product_ids, supplier_ids, periods, lead_time_map):
         """Extract the solution from the solved MILP problem."""
+        procurement_plan = {}
+        shipments_plan = {}
+        inventory_plan = {}
+        
+        # Extract procurement plan (when orders are placed)
+        for i in product_ids:
+            for j in supplier_ids:
+                for t in periods:
+                    if p_vars[i, j, t].varValue is not None and p_vars[i, j, t].varValue > 0:
+                        procurement_plan[(i, j, t)] = p_vars[i, j, t].varValue
+                        
+                        # Calculate when this order will arrive (shipment)
+                        lead_time = lead_time_map.get((j, i), 0)
+                        arrival_period = t + lead_time
+                        if arrival_period in periods:
+                            shipments_plan[(i, j, arrival_period)] = shipments_plan.get((i, j, arrival_period), 0) + p_vars[i, j, t].varValue
+        
+        # Extract inventory plan
+        for i in product_ids:
+            for t in periods:
+                if inv_vars[i, t].varValue is not None and inv_vars[i, t].varValue > 0:
+                    inventory_plan[(i, t)] = inv_vars[i, t].varValue
+        
+        # Generate complete procurement plan with all combinations
+        complete_procurement_plan = self._complete_procurement_plan(procurement_plan, product_ids, supplier_ids, periods)
+        
         solution = {
             'status': status,
             'objective': value(prob.objective),
-            'procurement_plan': {
-                (i, j, t): p_vars[i, j, t].varValue
-                for i in product_ids for j in supplier_ids for t in periods
-                if p_vars[i, j, t].varValue is not None and p_vars[i, j, t].varValue > 0
-            },
-            'inventory': {
-                (i, t): inv_vars[i, t].varValue
-                for i in product_ids for t in periods
-                if inv_vars[i, t].varValue is not None and inv_vars[i, t].varValue > 0
-            }
+            'procurement_plan': complete_procurement_plan,
+            'shipments_plan': shipments_plan,
+            'inventory': inventory_plan
         }
         return solution 

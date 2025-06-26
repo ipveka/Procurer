@@ -15,6 +15,6 @@
     "id": "S3",
     "name": "SupplierC",
     "products_offered": ["P1", "P2"],
-    "lead_times": {"P1": 1, "P2": 1}
+    "lead_times": {"P1": 2, "P2": 2}
   }
 ] 

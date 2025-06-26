@@ -4,7 +4,10 @@ from typing import Dict, Any, List, Optional
 from utils.data_loader import load_all_data
 from utils.validation import validate_data
 from utils.metrics import calculate_kpis
-from utils.visualization import plot_procurement_plan, plot_inventory_levels, plot_demand_vs_supply
+from utils.visualization import (
+    plot_procurement_plan, plot_inventory_levels, 
+    plot_demand_vs_supply, plot_shipments_plan
+)
 from solvers.linear import LinearSolver
 from solvers.heuristic import HeuristicSolver
 from solvers.nonlinear import NonlinearSolver
@@ -104,19 +107,23 @@ def get_inventory_plot(inventory: Dict, title: str = '', products_to_plot: Optio
     plot_inventory_levels(inventory)
     return plt.gcf()
 
-def get_demand_vs_supply_plot(demand: List[Any], procurement_plan: Dict, title: str = '', products_to_plot: Optional[List[str]] = None) -> Figure:
+def get_demand_vs_supply_plot(demand: List[Any], shipments_plan: Dict, title: str = '', products_to_plot: Optional[List[str]] = None) -> Figure:
     """
     Generate a matplotlib Figure comparing demand and supply.
     Args:
         demand: List of demand records.
-        procurement_plan: Dictionary of procurement quantities by (product, supplier, period).
+        shipments_plan: Dictionary of shipments quantities by (product, supplier, period).
         title: Optional plot title.
         products_to_plot: Optional list of product IDs to include.
     Returns:
         Matplotlib Figure object.
     """
-    plot_demand_vs_supply(demand, procurement_plan)
+    plot_demand_vs_supply(demand, shipments_plan)
     return plt.gcf()
+
+def get_shipments_plot(shipments_plan):
+    """Get shipments plot for the app."""
+    return plot_shipments_plan(shipments_plan)
 
 # --- Filtering Utilities ---
 def filter_products(data: Dict[str, Any], product_ids: List[str]) -> Dict[str, Any]:

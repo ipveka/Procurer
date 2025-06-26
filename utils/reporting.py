@@ -70,12 +70,12 @@ def plot_inventory_levels(inventory: Dict, filename: str, title: str, products_t
     plt.legend()
     save_plot(filename, title)
 
-def plot_demand_vs_supply(demand: List[Any], procurement_plan: Dict, filename: str, title: str, products_to_plot=None):
+def plot_demand_vs_supply(demand: List[Any], shipments_plan: Dict, filename: str, title: str, products_to_plot=None):
     demand_map = defaultdict(float)
     for d in demand:
         demand_map[(d.product_id, d.period)] += d.expected_quantity
     supply_map = defaultdict(float)
-    for (product, supplier, period), qty in procurement_plan.items():
+    for (product, supplier, period), qty in shipments_plan.items():
         supply_map[(product, period)] += qty
     products = sorted(set(p for p, _ in demand_map.keys()))
     if products_to_plot is not None:
@@ -85,7 +85,7 @@ def plot_demand_vs_supply(demand: List[Any], procurement_plan: Dict, filename: s
         d_vals = [demand_map[(product, t)] for t in periods]
         s_vals = [supply_map[(product, t)] for t in periods]
         plt.plot(periods, d_vals, label=f'Demand {product}', linestyle='--')
-        plt.plot(periods, s_vals, label=f'Supply {product}', marker='o')
+        plt.plot(periods, s_vals, label=f'Supply {product}', marker='s')
     plt.xlabel('Period', fontsize=12)
     plt.ylabel('Quantity', fontsize=12)
     plt.legend()
@@ -107,10 +107,10 @@ def img_to_base64(path):
 def kpi_table_section(linear_kpis, heuristic_kpis, nonlinear_kpis):
     headers = ["KPI", "Heuristic Solver", "Linear Solver (MILP)", "Nonlinear Solver (Discounts)", "KPI Meaning"]
     kpi_explanations = {
-        "total_procurement_cost": "Total cost of all products purchased (excludes holding/logistics)",
-        "service_level": "Fraction of demand fulfilled (1.0 = all demand met)",
+        "total_procurement_cost": "Total cost of all products purchased including logistics costs",
+        "service_level": "Fraction of demand fulfilled (1.0 = all demand met on time)",
         "inventory_turnover": "How many times inventory is used up per period (higher = more efficient)",
-        "obsolescence": "Stock left at end that was not used (risk of waste)"
+        "obsolescence": "Stock left at end that was not used (risk of waste/expiration)"
     }
     kpis = set(linear_kpis.keys()) | set(heuristic_kpis.keys()) | set(nonlinear_kpis.keys())
     rows = []
@@ -145,10 +145,50 @@ def generate_html_report(
         solvers_run.append('Heuristic')
     solvers_run_str = ', '.join(solvers_run) if solvers_run else 'None'
 
-    # Variable/assumption explanation
+    # Variable/assumption explanation with updated concepts
     variables_explanation = """
     <div class="explanation">
-      <h2>Variables & Assumptions</h2>
+      <h2>Key Concepts & Variables</h2>
+      
+      <h3>🔑 Understanding Procurement vs Shipments</h3>
+      <p>This optimization model distinguishes between two critical moments in the supply chain timeline:</p>
+      
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">
+        <h4>📋 <b>Procurement Plan</b> - When Orders Are Placed</h4>
+        <p><b>Procurement</b> is when you place an order with a supplier. This is when you pay and commit to purchasing.</p>
+        <ul>
+          <li><b>Timing:</b> Orders placed in advance, considering lead times</li>
+          <li><b>Financial Impact:</b> Cash flows out when you place the order</li>
+          <li><b>Example:</b> Need products in period 3, supplier has 2-period lead time → order in period 1</li>
+        </ul>
+      </div>
+      
+      <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0;">
+        <h4>📦 <b>Shipments Plan</b> - When Orders Actually Arrive</h4>
+        <p><b>Shipments</b> is when ordered products arrive at your warehouse and become available for use.</p>
+        <ul>
+          <li><b>Timing:</b> Orders arrive after the lead time period</li>
+          <li><b>Inventory Impact:</b> Available stock increases when shipments arrive</li>
+          <li><b>Example:</b> Order placed in period 1 with 2-period lead time → arrives in period 3</li>
+        </ul>
+      </div>
+      
+      <h4>🎯 Why This Distinction Matters</h4>
+      <ul>
+        <li><b>💰 Cash Flow:</b> You pay when placing orders (procurement), not when they arrive</li>
+        <li><b>📊 Inventory:</b> You can only use products that have arrived (shipments) to meet demand</li>
+        <li><b>⏰ Planning:</b> You must order early enough for shipments to arrive when needed</li>
+      </ul>
+      
+      <h3>Supply Chain Timeline Concepts:</h3>
+      <ul>
+        <li><b>Procurement Plan:</b> When orders are placed to suppliers (considering lead times)</li>
+        <li><b>Shipments Plan:</b> When orders actually arrive at the warehouse (procurement + lead time)</li>
+        <li><b>Inventory Levels:</b> Stock levels throughout the planning horizon</li>
+        <li><b>Demand vs Supply:</b> Comparison of customer demand vs. available supply (shipments)</li>
+      </ul>
+      
+      <h3>Model Variables:</h3>
       <ul>
         <li><b>Products:</b> Each product has a unique ID, name, cost per supplier, shelf life (expiration), and minimum order quantity (MOQ).</li>
         <li><b>Suppliers:</b> Each supplier offers certain products and has lead times per product.</li>
@@ -156,62 +196,79 @@ def generate_html_report(
         <li><b>Inventory:</b> Initial stock, holding cost, warehouse capacity, and <b>safety stock</b> (minimum required inventory at all times) for each product.</li>
         <li><b>Logistics Cost:</b> Per-unit and fixed costs for each supplier-product pair.</li>
       </ul>
-      <b>Constraints:</b>
+      
+      <h3>Constraints & Assumptions:</h3>
       <ul>
-        <li>All constraints in the model are <b>hard constraints</b> (must be satisfied): demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and MOQ.</li>
-        <li>In some advanced scenarios, <b>soft constraints</b> (penalties for violations) can be used for flexibility or robustness, e.g., allowing small backorders or exceeding capacity with a cost penalty.</li>
+        <li><b>Hard Constraints:</b> All constraints in the model are <b>hard constraints</b> (must be satisfied): demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and MOQ.</li>
+        <li><b>Soft Constraints:</b> In some advanced scenarios, <b>soft constraints</b> (penalties for violations) can be used for flexibility or robustness, e.g., allowing small backorders or exceeding capacity with a cost penalty.</li>
+        <li><b>Lead Times:</b> Realistic modeling of time between order placement and order arrival</li>
+        <li><b>Safety Stock:</b> Minimum inventory required at all times as a buffer against uncertainty</li>
+        <li><b>MOQ:</b> Minimum order quantities that must be met for each supplier</li>
       </ul>
-      <b>Assumptions:</b>
+      
+      <h3>Assumptions:</h3>
       <ul>
         <li>All demand must be met on time (no backorders allowed).</li>
-        <li>Products do not expire within the planning horizon (shelf life &gt; periods).</li>
+        <li>Products do not expire within the planning horizon (shelf life > periods).</li>
         <li>All suppliers are reliable and always deliver as planned.</li>
         <li>Costs and demand are deterministic (no uncertainty modeled here).</li>
         <li>Safety stock is strictly enforced: inventory at end of each period must be at least the safety stock level.</li>
+        <li>Lead times are deterministic and supplier-specific.</li>
       </ul>
-      <b>Variable Details:</b>
+      
+      <h3>Variable Details:</h3>
       <ul>
         <li><b>product_id</b>: Unique product identifier.</li>
         <li><b>supplier_id</b>: Unique supplier identifier.</li>
-        <li><b>period</b>: Integer time index (e.g., 1, 2, 3, ...).</li>
+        <li><b>period</b>: Integer time index (e.g., 0, 1, 2, 3, ...).</li>
         <li><b>initial_stock</b>: Starting inventory for each product.</li>
         <li><b>holding_cost</b>: Cost per unit per period for holding inventory.</li>
         <li><b>warehouse_capacity</b>: Maximum inventory allowed for each product.</li>
         <li><b>safety_stock</b>: Minimum inventory required for each product at all times (buffer against uncertainty).</li>
         <li><b>unit_cost_by_supplier</b>: Cost per unit for each product from each supplier.</li>
         <li><b>MOQ</b>: Minimum order quantity for each product.</li>
-        <li><b>lead_times</b>: Number of periods between order and delivery for each product-supplier pair.</li>
+        <li><b>lead_times</b>: Number of periods between order placement and delivery for each product-supplier pair.</li>
         <li><b>cost_per_unit</b>: Logistics cost per unit shipped.</li>
         <li><b>fixed_cost</b>: Fixed logistics cost per shipment.</li>
       </ul>
     </div>
     """
-    # Plain-language solver explanation
+    
+    # Plain-language solver explanation with updated concepts
     solver_explanation = f"""
     <div class='section'>
       <h2 class='section-title'>2. Solver Logic & Approach</h2>
       <div class='explanation'>
         <b>Solvers Activated in This Report:</b> <span style='color:#1976d2;font-weight:bold'>{solvers_run_str}</span><br><br>
-        <b>Linear Solver (MILP):</b>
+        
+        <h3>Linear Solver (MILP):</h3>
         <ul>
           <li>Finds the optimal procurement and inventory plan by minimizing total cost (procurement, logistics, holding).</li>
           <li>Respects all constraints: demand fulfillment, inventory balance, warehouse capacity, safety stock, shelf life, and minimum order quantity (MOQ).</li>
+          <li>Models realistic lead times: orders placed in period t arrive in period t + lead_time.</li>
           <li>Uses a mathematical programming solver to guarantee the best solution for the given data.</li>
+          <li>Distinguishes between procurement (order placement) and shipments (order arrival).</li>
         </ul>
-        <b>Nonlinear Solver (NLP with Discounts):</b>
+        
+        <h3>Nonlinear Solver (NLP with Discounts):</h3>
         <ul>
           <li>Similar to the linear solver, but models quantity discounts: if you buy more than a threshold, you get a lower price for the extra units.</li>
           <li>Minimizes total cost, including the effect of discounts, using a nonlinear optimization approach.</li>
+          <li>Also models lead times and distinguishes procurement from shipments.</li>
         </ul>
-        <b>Heuristic Solver:</b>
+        
+        <h3>Heuristic Solver:</h3>
         <ul>
-          <li>Works period by period, fulfilling demand and safety stock from the cheapest available supplier.</li>
+          <li>Works period by period, projecting inventory forward and ordering when safety stock is threatened.</li>
+          <li>Orders from the cheapest available supplier when projected inventory falls below safety stock.</li>
           <li>Fast and simple, but may not find the absolute best solution.</li>
           <li>Applies discounts greedily if order quantity exceeds the discount threshold.</li>
+          <li>Models lead times and distinguishes procurement from shipments.</li>
         </ul>
       </div>
     </div>
     """
+    
     # KPI table: only show results for solvers that were executed
     kpi_rows = []
     kpi_headers = ["Solver", "Total Procurement Cost", "Service Level", "Inventory Turnover", "Obsolescence"]
@@ -270,96 +327,372 @@ def generate_html_report(
         ["Supplier", "Product", "Cost per Unit", "Fixed Cost"],
         [[l.supplier_id, l.product_id, l.cost_per_unit, l.fixed_cost] for l in data.get('logistics_cost', [])]
     )
-    # Helper for detailed results tables
-    def build_solution_rows(procurement_plan, inventory, demand):
+    
+    # Helper for detailed results tables with procurement and shipments
+    def build_solution_rows(procurement_plan, inventory, demand, shipments_plan):
         rows = []
         for (i, j, t), v in procurement_plan.items():
             w = inventory.get((i, t), 0)
             x = next((d.expected_quantity for d in demand if d.product_id == i and d.period == t), 0)
-            rows.append([i, j, t, v, w, x])
+            # Get shipment quantity for this period
+            shipment_qty = shipments_plan.get((i, j, t), 0)
+            rows.append([i, j, t, w, x, v, shipment_qty])
         # Sort ascending by product, supplier, period
         rows.sort(key=lambda row: (row[0], row[1], row[2]))
         return rows
+    
+    # Helper for 2x2 plot layout
+    def create_2x2_plot_layout(plot_files, solver_name):
+        plots_html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">'
+        
+        # Top left: Procurement Plan
+        if f'{solver_name}_procurement' in plot_files:
+            plots_html += f'''
+            <div style="text-align: center;">
+                <h4>Procurement Plan (Orders Placed)</h4>
+                <img src="{img_to_base64(plot_files[f"{solver_name}_procurement"])}" 
+                     alt="{solver_name} Procurement Plan" 
+                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+            </div>
+            '''
+        else:
+            plots_html += '<div style="text-align: center;"><h4>Procurement Plan</h4><p>No data available</p></div>'
+        
+        # Top right: Shipments Plan
+        if f'{solver_name}_shipments' in plot_files:
+            plots_html += f'''
+            <div style="text-align: center;">
+                <h4>Shipments Plan (Orders Received)</h4>
+                <img src="{img_to_base64(plot_files[f"{solver_name}_shipments"])}" 
+                     alt="{solver_name} Shipments Plan" 
+                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+            </div>
+            '''
+        else:
+            plots_html += '<div style="text-align: center;"><h4>Shipments Plan</h4><p>No data available</p></div>'
+        
+        # Bottom left: Inventory Levels
+        if f'{solver_name}_inventory' in plot_files:
+            plots_html += f'''
+            <div style="text-align: center;">
+                <h4>Inventory Levels</h4>
+                <img src="{img_to_base64(plot_files[f"{solver_name}_inventory"])}" 
+                     alt="{solver_name} Inventory Levels" 
+                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+            </div>
+            '''
+        else:
+            plots_html += '<div style="text-align: center;"><h4>Inventory Levels</h4><p>No data available</p></div>'
+        
+        # Bottom right: Demand vs Supply
+        if f'{solver_name}_demand_supply' in plot_files:
+            plots_html += f'''
+            <div style="text-align: center;">
+                <h4>Demand vs Supply</h4>
+                <img src="{img_to_base64(plot_files[f"{solver_name}_demand_supply"])}" 
+                     alt="{solver_name} Demand vs Supply" 
+                     style="width: 100%; max-width: 400px; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc;">
+            </div>
+            '''
+        else:
+            plots_html += '<div style="text-align: center;"><h4>Demand vs Supply</h4><p>No data available</p></div>'
+        
+        plots_html += '</div>'
+        return plots_html
+    
     html = f"""
     <html>
     <head>
         <title>Procurer Supply Chain Optimization Report</title>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background: #f4f6fa; }}
-            h1 {{ color: #1976d2; font-size: 2.5em; margin-bottom: 0.2em; }}
-            h2.section-title {{ color: #1976d2; font-size: 2em; margin-top: 1.5em; margin-bottom: 0.5em; border-bottom: 2px solid #1976d2; padding-bottom: 0.2em; }}
-            h3.subsection-title {{ color: #2c3e50; font-size: 1.3em; margin-top: 1.2em; margin-bottom: 0.5em; }}
-            .section {{ margin-bottom: 48px; padding: 24px 28px; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px #e3e3e3; }}
-            img {{ max-width: 520px; margin: 18px 18px 18px 0; border: 2px solid #1976d2; border-radius: 6px; box-shadow: 2px 2px 10px #cfd8dc; display: inline-block; vertical-align: top; }}
-            .explanation {{ background: #e3f2fd; padding: 22px; border-radius: 10px; margin-bottom: 36px; border-left: 7px solid #1976d2; }}
-            .data-table {{ border-collapse: collapse; margin: 18px 0 36px 0; width: 100%; background: #fff; }}
-            .data-table th, .data-table td {{ border: 1px solid #bbb; padding: 10px 16px; text-align: left; }}
-            .data-table th {{ background: #1976d2; color: #fff; }}
+            body {{ 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }}
+            .container {{
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            h1 {{ 
+                color: #ffffff; 
+                font-size: 3em; 
+                margin-bottom: 0.5em; 
+                text-align: center;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                font-weight: 300;
+                letter-spacing: 2px;
+            }}
+            h2.section-title {{ 
+                color: #2c3e50; 
+                font-size: 2.2em; 
+                margin-top: 1.5em; 
+                margin-bottom: 0.8em; 
+                border-bottom: 3px solid #3498db; 
+                padding-bottom: 0.3em;
+                font-weight: 400;
+                position: relative;
+            }}
+            h2.section-title::after {{
+                content: '';
+                position: absolute;
+                bottom: -3px;
+                left: 0;
+                width: 60px;
+                height: 3px;
+                background: #e74c3c;
+            }}
+            h3.subsection-title {{ 
+                color: #34495e; 
+                font-size: 1.5em; 
+                margin-top: 1.5em; 
+                margin-bottom: 0.8em;
+                font-weight: 500;
+                border-left: 4px solid #3498db;
+                padding-left: 15px;
+            }}
+            h4 {{ 
+                color: #2c3e50; 
+                font-size: 1.3em; 
+                margin-top: 1.2em; 
+                margin-bottom: 0.5em; 
+                text-align: center;
+                font-weight: 500;
+                background: linear-gradient(45deg, #3498db, #2980b9);
+                color: white;
+                padding: 10px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .section {{ 
+                margin-bottom: 50px; 
+                padding: 30px; 
+                background: rgba(255, 255, 255, 0.95); 
+                border-radius: 15px; 
+                box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+            img {{ 
+                max-width: 600px; 
+                margin: 15px; 
+                border: 3px solid #3498db; 
+                border-radius: 12px; 
+                box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+            }}
+            img:hover {{
+                transform: scale(1.02);
+                box-shadow: 0 12px 35px rgba(52, 152, 219, 0.4);
+            }}
+            .explanation {{ 
+                background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+                padding: 25px; 
+                border-radius: 15px; 
+                margin-bottom: 40px; 
+                border-left: 6px solid #2196f3;
+                box-shadow: 0 4px 15px rgba(33, 150, 243, 0.1);
+            }}
+            .data-table {{ 
+                border-collapse: collapse; 
+                margin: 25px 0 40px 0; 
+                width: 100%; 
+                background: #ffffff;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }}
+            .data-table th, .data-table td {{ 
+                border: 1px solid #e0e0e0; 
+                padding: 15px 20px; 
+                text-align: left; 
+            }}
+            .data-table th {{ 
+                background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); 
+                color: #ffffff;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                font-size: 0.9em;
+            }}
+            .data-table tr:nth-child(even) {{
+                background-color: #f8f9fa;
+            }}
+            .data-table tr:hover {{
+                background-color: #e3f2fd;
+                transition: background-color 0.3s ease;
+            }}
+            .plot-container {{ 
+                text-align: center; 
+                margin: 30px 0; 
+                padding: 20px;
+                background: rgba(255, 255, 255, 0.7);
+                border-radius: 15px;
+                backdrop-filter: blur(5px);
+            }}
+            .grid-container {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 30px;
+                margin: 30px 0;
+                padding: 20px;
+                background: rgba(255, 255, 255, 0.7);
+                border-radius: 15px;
+                backdrop-filter: blur(5px);
+            }}
+            .plot-item {{
+                text-align: center;
+                padding: 15px;
+                background: rgba(255, 255, 255, 0.9);
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                transition: transform 0.3s ease;
+            }}
+            .plot-item:hover {{
+                transform: translateY(-5px);
+            }}
+            .plot-item img {{
+                max-width: 100%;
+                height: auto;
+                margin: 10px 0;
+            }}
+            ul {{
+                line-height: 1.8;
+                color: #2c3e50;
+            }}
+            li {{
+                margin-bottom: 8px;
+            }}
+            p {{
+                line-height: 1.7;
+                color: #34495e;
+                margin-bottom: 15px;
+            }}
+            .highlight {{
+                background: linear-gradient(120deg, #a8edea 0%, #fed6e3 100%);
+                padding: 20px;
+                border-radius: 12px;
+                margin: 20px 0;
+                border-left: 5px solid #e74c3c;
+            }}
+            .kpi-highlight {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 10px 0;
+                text-align: center;
+                font-weight: 600;
+            }}
         </style>
     </head>
     <body>
-        <h1>Procurer Supply Chain Optimization Report</h1>
-        <div class="section">
-            <h2 class="section-title">1. Executive Summary</h2>
-            <div class="explanation">
-                This report presents a comprehensive, data-driven analysis of supply chain procurement using one or more solver methods. All input data, model logic, and results are fully transparent for technical and executive review.
+        <div class="container">
+            <h1>🚚 Procurer Supply Chain Optimization Report</h1>
+            <div class="section">
+                <h2 class="section-title">1. Executive Summary</h2>
+                <div class="explanation">
+                    <p>This report presents a comprehensive, data-driven analysis of supply chain procurement using one or more solver methods. 
+                    The analysis includes realistic modeling of lead times, distinguishing between when orders are placed (procurement) 
+                    and when they arrive (shipments). All input data, model logic, and results are fully transparent for technical and executive review.</p>
+                    
+                    <div class="highlight">
+                        <h3>Key Insights:</h3>
+                        <ul>
+                            <li><b>Procurement vs Shipments:</b> Orders are placed in advance considering lead times, with shipments arriving later</li>
+                            <li><b>Safety Stock Management:</b> Minimum inventory levels are maintained throughout the planning horizon</li>
+                            <li><b>Cost Optimization:</b> Total cost includes procurement, logistics, and holding costs</li>
+                            <li><b>Constraint Satisfaction:</b> All demand must be met while respecting capacity and MOQ constraints</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
-        </div>
-        {solver_explanation}
-        <div class="section">
-            <h2 class="section-title">3. Model Variables, Data & Assumptions</h2>
-            {variables_explanation}
-            <h3 class="subsection-title">Input Data Tables</h3>
-            {products_table}
-            {suppliers_table}
-            {demand_table}
-            {inventory_table}
-            {logistics_table}
-        </div>
-        <div class="section">
-            <h2 class="section-title">4. Key Performance Indicators (KPIs) & Evaluation</h2>
-            {kpi_table}
-        </div>
+            {solver_explanation}
+            <div class="section">
+                <h2 class="section-title">3. Model Variables, Data & Assumptions</h2>
+                {variables_explanation}
+                <h3 class="subsection-title">Input Data Tables</h3>
+                {products_table}
+                {suppliers_table}
+                {demand_table}
+                {inventory_table}
+                {logistics_table}
+            </div>
+            <div class="section">
+                <h2 class="section-title">4. Key Performance Indicators (KPIs) & Evaluation</h2>
+                {kpi_table}
+            </div>
 """
-    # Heuristic section
+    
+    # Heuristic section with 2x2 plot layout
     if heuristic_solution and any(k in plot_files for k in ['heuristic_demand_supply', 'heuristic_inventory', 'heuristic_procurement']):
         html += f'''
         <div class="section">
             <h2 class="section-title">5. Heuristic Solver — Results Overview</h2>
-            <div class="explanation">The following plots and table summarize the procurement, inventory, and demand fulfillment plan as determined by the baseline Heuristic solver.</div>
-            {f'<img src="{img_to_base64(plot_files["heuristic_demand_supply"])}" alt="Heuristic Solver: Demand vs Supply">' if 'heuristic_demand_supply' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["heuristic_inventory"])}" alt="Heuristic Solver: Inventory Levels">' if 'heuristic_inventory' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["heuristic_procurement"])}" alt="Heuristic Solver: Procurement Plan">' if 'heuristic_procurement' in plot_files else ''}
+            <div class="explanation">
+                The following 2x2 plot layout shows the comprehensive supply chain plan determined by the Heuristic solver:
+                <ul>
+                    <li><b>Procurement Plan:</b> When orders are placed to suppliers (considering lead times)</li>
+                    <li><b>Shipments Plan:</b> When orders actually arrive at the warehouse</li>
+                    <li><b>Inventory Levels:</b> Stock levels throughout the planning horizon</li>
+                    <li><b>Demand vs Supply:</b> Comparison of customer demand vs. available supply (shipments)</li>
+                </ul>
+            </div>
+            <div class="plot-container">
+                {create_2x2_plot_layout(plot_files, 'heuristic')}
+            </div>
             <h3 class="subsection-title">Detailed Period-by-Period Results</h3>
-            {render_table(["Product", "Supplier", "Period", "Procurement Qty", "Inventory", "Demand"], build_solution_rows(heuristic_solution.get('procurement_plan', {}), heuristic_solution.get('inventory', {}), data.get('demand', [])))}
+            {render_table(["Product", "Supplier", "Period", "Inventory", "Demand", "Procurement Qty", "Shipment Qty"], build_solution_rows(heuristic_solution.get('procurement_plan', {}), heuristic_solution.get('inventory', {}), data.get('demand', []), heuristic_solution.get('shipments_plan', {})))}
         </div>
         '''
-    # Linear section
+    
+    # Linear section with 2x2 plot layout
     if linear_solution and any(k in plot_files for k in ['linear_demand_supply', 'linear_inventory', 'linear_procurement']):
         html += f'''
         <div class="section">
             <h2 class="section-title">6. Linear Solver (MILP) — Results Overview</h2>
-            <div class="explanation">The following plots and table summarize the optimal procurement, inventory, and demand fulfillment plan as determined by the Linear (MILP) solver.</div>
-            {f'<img src="{img_to_base64(plot_files["linear_demand_supply"])}" alt="Linear Solver: Demand vs Supply">' if 'linear_demand_supply' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["linear_inventory"])}" alt="Linear Solver: Inventory Levels">' if 'linear_inventory' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["linear_procurement"])}" alt="Linear Solver: Procurement Plan">' if 'linear_procurement' in plot_files else ''}
+            <div class="explanation">
+                The following 2x2 plot layout shows the optimal supply chain plan determined by the Linear (MILP) solver:
+                <ul>
+                    <li><b>Procurement Plan:</b> When orders are placed to suppliers (considering lead times)</li>
+                    <li><b>Shipments Plan:</b> When orders actually arrive at the warehouse</li>
+                    <li><b>Inventory Levels:</b> Stock levels throughout the planning horizon</li>
+                    <li><b>Demand vs Supply:</b> Comparison of customer demand vs. available supply (shipments)</li>
+                </ul>
+            </div>
+            <div class="plot-container">
+                {create_2x2_plot_layout(plot_files, 'linear')}
+            </div>
             <h3 class="subsection-title">Detailed Period-by-Period Results</h3>
-            {render_table(["Product", "Supplier", "Period", "Procurement Qty", "Inventory", "Demand"], build_solution_rows(linear_solution.get('procurement_plan', {}), linear_solution.get('inventory', {}), data.get('demand', [])))}
+            {render_table(["Product", "Supplier", "Period", "Inventory", "Demand", "Procurement Qty", "Shipment Qty"], build_solution_rows(linear_solution.get('procurement_plan', {}), linear_solution.get('inventory', {}), data.get('demand', []), linear_solution.get('shipments_plan', {})))}
         </div>
         '''
-    # Nonlinear section
+    
+    # Nonlinear section with 2x2 plot layout
     if nonlinear_solution and any(k in plot_files for k in ['nonlinear_demand_supply', 'nonlinear_inventory', 'nonlinear_procurement']):
         html += f'''
         <div class="section">
             <h2 class="section-title">7. Nonlinear Solver (Discounts) — Results Overview</h2>
-            <div class="explanation">The following plots and table summarize the procurement, inventory, and demand fulfillment plan as determined by the Nonlinear solver with quantity discounts.</div>
-            {f'<img src="{img_to_base64(plot_files["nonlinear_demand_supply"])}" alt="Nonlinear Solver: Demand vs Supply">' if 'nonlinear_demand_supply' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["nonlinear_inventory"])}" alt="Nonlinear Solver: Inventory Levels">' if 'nonlinear_inventory' in plot_files else ''}
-            {f'<img src="{img_to_base64(plot_files["nonlinear_procurement"])}" alt="Nonlinear Solver: Procurement Plan">' if 'nonlinear_procurement' in plot_files else ''}
+            <div class="explanation">
+                The following 2x2 plot layout shows the supply chain plan determined by the Nonlinear solver with quantity discounts:
+                <ul>
+                    <li><b>Procurement Plan:</b> When orders are placed to suppliers (considering lead times)</li>
+                    <li><b>Shipments Plan:</b> When orders actually arrive at the warehouse</li>
+                    <li><b>Inventory Levels:</b> Stock levels throughout the planning horizon</li>
+                    <li><b>Demand vs Supply:</b> Comparison of customer demand vs. available supply (shipments)</li>
+                </ul>
+            </div>
+            <div class="plot-container">
+                {create_2x2_plot_layout(plot_files, 'nonlinear')}
+            </div>
             <h3 class="subsection-title">Detailed Period-by-Period Results</h3>
-            {render_table(["Product", "Supplier", "Period", "Procurement Qty", "Inventory", "Demand"], build_solution_rows(nonlinear_solution.get('procurement_plan', {}), nonlinear_solution.get('inventory', {}), data.get('demand', [])))}
+            {render_table(["Product", "Supplier", "Period", "Inventory", "Demand", "Procurement Qty", "Shipment Qty"], build_solution_rows(nonlinear_solution.get('procurement_plan', {}), nonlinear_solution.get('inventory', {}), data.get('demand', []), nonlinear_solution.get('shipments_plan', {})))}
         </div>
         '''
+    
     html += """
     </body>
     </html>

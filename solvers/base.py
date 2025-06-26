@@ -10,7 +10,7 @@ Purpose:
 You do not need to instantiate BaseSolver directly. It is only used as a parent class for other solvers.
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 class BaseSolver(ABC):
     """
@@ -28,11 +28,26 @@ class BaseSolver(ABC):
         """
         pass
 
-class NonlinearSolver(BaseSolver):
-    """
-    NonlinearSolver for Procurement Optimization with Quantity Discounts.
-    This solver handles nonlinear procurement costs due to quantity discounts (e.g., buy > threshold units, get discount on extra units).
-    This is a placeholder and should be implemented in solvers/nonlinear.py.
-    """
-    def solve(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        raise NotImplementedError("NonlinearSolver must be implemented in solvers/nonlinear.py") 
+    def _complete_procurement_plan(self, procurement_plan: Dict[Tuple[str, str, int], float], 
+                                  product_ids: List[str], supplier_ids: List[str], periods: List[int]) -> Dict[Tuple[str, str, int], float]:
+        """
+        Generate a complete procurement plan with all combinations (including zeros) ordered by supplier, product, period.
+        Args:
+            procurement_plan: Dictionary with actual procurement quantities (only non-zero values)
+            product_ids: List of product IDs
+            supplier_ids: List of supplier IDs  
+            periods: List of periods
+        Returns:
+            Complete procurement plan with all combinations, ordered by supplier, product, period
+        """
+        complete_plan = {}
+        
+        # Sort by supplier, product, period as requested
+        for supplier in sorted(supplier_ids):
+            for product in sorted(product_ids):
+                for period in sorted(periods):
+                    key = (product, supplier, period)
+                    # Use actual value if exists, otherwise 0
+                    complete_plan[key] = procurement_plan.get(key, 0.0)
+        
+        return complete_plan 
